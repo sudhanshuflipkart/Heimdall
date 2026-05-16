@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.heimdall.tracker.ui.screens.AboutScreen
+import com.heimdall.tracker.ui.screens.CalendarScreen
 import com.heimdall.tracker.ui.screens.HistoryScreen
 import com.heimdall.tracker.ui.screens.RunDetailScreen
 import com.heimdall.tracker.ui.screens.SettingsScreen
@@ -14,10 +15,11 @@ import com.heimdall.tracker.ui.screens.TrackingScreen
 import com.heimdall.tracker.ui.viewmodel.TrackingViewModel
 
 sealed class Screen(val route: String) {
-    data object Tracking : Screen("tracking")
-    data object History : Screen("history")
-    data object Settings : Screen("settings")
-    data object About : Screen("about")
+    data object Tracking  : Screen("tracking")
+    data object History   : Screen("history")
+    data object Calendar  : Screen("calendar")
+    data object Settings  : Screen("settings")
+    data object About     : Screen("about")
     data object RunDetail : Screen("run_detail/{runId}") {
         fun createRoute(runId: Long) = "run_detail/$runId"
     }
@@ -42,6 +44,9 @@ fun HeimdallNavGraph(
                     navController.navigate(Screen.RunDetail.createRoute(runId))
                 }
             )
+        }
+        composable(Screen.Calendar.route) {
+            CalendarScreen(viewModel = viewModel)
         }
         composable(Screen.Settings.route) {
             SettingsScreen(viewModel = viewModel)

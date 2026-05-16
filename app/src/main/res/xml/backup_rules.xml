@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android Auto Backup rules for Heimdall.
+
+    Backed up (restored on reinstall / new device):
+      - Room database — run history, routes, distances, times
+      - Shared preferences — auto-pause speed threshold
+
+    Excluded:
+      - OSMDroid tile cache (large, can be re-downloaded)
+      - Any temp files
+-->
+<full-backup-content>
+    <!-- Include Room database -->
+    <include domain="database" path="." />
+    <!-- Include SharedPreferences (auto-pause settings) -->
+    <include domain="sharedpref" path="heimdall_settings.xml" />
+    <!-- Exclude osmdroid map tile cache — large and re-downloadable -->
+    <exclude domain="cache" path="osmdroid" />
+</full-backup-content>

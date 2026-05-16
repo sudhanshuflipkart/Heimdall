@@ -1,5 +1,8 @@
 package com.heimdall.tracker.ui.screens
 
+import android.content.Intent
+import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -30,10 +33,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -41,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.heimdall.tracker.ui.components.OsmMapView
 import com.heimdall.tracker.ui.theme.HeimdallBlack
 import com.heimdall.tracker.ui.theme.HeimdallGold
+import com.heimdall.tracker.ui.theme.HeimdallGreen
 import com.heimdall.tracker.ui.theme.HeimdallMediumGray
 import com.heimdall.tracker.ui.theme.HeimdallOrange
 import com.heimdall.tracker.ui.theme.HeimdallRed
@@ -49,15 +55,37 @@ import com.heimdall.tracker.ui.viewmodel.TrackingViewModel
 
 @Composable
 fun TrackingScreen(viewModel: TrackingViewModel) {
+    val context = LocalContext.current
+
     val isTracking by viewModel.isTracking.collectAsState()
+    val isManuallyPaused by viewModel.isManuallyPaused.collectAsState()
     val isAutoPaused by viewModel.isAutoPaused.collectAsState()
     val routePoints by viewModel.routePoints.collectAsState()
     val currentLocation by viewModel.currentLocation.collectAsState()
     val distanceMeters by viewModel.distanceMeters.collectAsState()
     val activeTimeMillis by viewModel.activeTimeMillis.collectAsState()
+    val gpsDisabledEvent by viewModel.gpsDisabledEvent.collectAsState()
+
+    // ── GPS disabled: show toast and offer to open settings ──
+    LaunchedEffect(gpsDisabledEvent) {
+        if (gpsDisabledEvent) {
+            Toast.makeText(
+                context,
+                "GPS is off. Please enable Location to start tracking.",
+                Toast.LENGTH_LONG
+            ).show()
+            // Open Location Settings so user can enable GPS in one tap
+            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            viewModel.consumeGpsDisabledEvent()
+        }
+    }
+
+    // Derived state
+    val isPaused = isManuallyPaused || isAutoPaused
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // ── Full-screen Map ──
+
+        // ── Full-screen map ──
         OsmMapView(
             modifier = Modifier.fillMaxSize(),
             currentLocation = currentLocation,
@@ -65,7 +93,7 @@ fun TrackingScreen(viewModel: TrackingViewModel) {
             isTracking = isTracking
         )
 
-        // ── Top Stats Overlay (Strava-style) ──
+        // ── Stats overlay (visible while tracking) ──
         AnimatedVisibility(
             visible = isTracking,
             enter = fadeIn(),
@@ -88,45 +116,64 @@ fun TrackingScreen(viewModel: TrackingViewModel) {
                         .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Status indicator — TRACKING or AUTO-PAUSED
+                    // Status indicator
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(bottom = 12.dp)
                     ) {
-                        if (isAutoPaused) {
-                            Icon(
-                                imageVector = Icons.Default.Pause,
-                                contentDescription = "Paused",
-                                tint = HeimdallOrange,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "AUTO-PAUSED",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = HeimdallOrange,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 2.sp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.FiberManualRecord,
-                                contentDescription = "Live",
-                                tint = HeimdallRed,
-                                modifier = Modifier.size(10.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "TRACKING",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = HeimdallRed,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 2.sp
-                            )
+                        when {
+                            isManuallyPaused -> {
+                                Icon(
+                                    imageVector = Icons.Default.Pause,
+                                    contentDescription = "Paused",
+                                    tint = HeimdallGold,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "PAUSED",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = HeimdallGold,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp
+                                )
+                            }
+                            isAutoPaused -> {
+                                Icon(
+                                    imageVector = Icons.Default.Pause,
+                                    contentDescription = "Auto-Paused",
+                                    tint = HeimdallOrange,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "AUTO-PAUSED",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = HeimdallOrange,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp
+                                )
+                            }
+                            else -> {
+                                Icon(
+                                    imageVector = Icons.Default.FiberManualRecord,
+                                    contentDescription = "Live",
+                                    tint = HeimdallRed,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "TRACKING",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = HeimdallRed,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp
+                                )
+                            }
                         }
                     }
 
-                    // Time — active time only (excludes paused time)
+                    // Timer — ticks every second (powered by coroutine in service)
                     Text(
                         text = viewModel.formatDuration(activeTimeMillis),
                         style = MaterialTheme.typography.displayLarge.copy(
@@ -134,13 +181,17 @@ fun TrackingScreen(viewModel: TrackingViewModel) {
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-1).sp
                         ),
-                        color = if (isAutoPaused) HeimdallOrange else HeimdallWhite,
+                        color = when {
+                            isManuallyPaused -> HeimdallGold
+                            isAutoPaused -> HeimdallOrange
+                            else -> HeimdallWhite
+                        },
                         textAlign = TextAlign.Center
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Distance and Pace row
+                    // Distance + Pace
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
@@ -198,28 +249,14 @@ fun TrackingScreen(viewModel: TrackingViewModel) {
             }
         }
 
-        // ── Bottom Control Button ──
+        // ── Bottom controls ──
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 48.dp)
         ) {
-            if (isTracking) {
-                FloatingActionButton(
-                    onClick = { viewModel.stopTracking() },
-                    modifier = Modifier.size(80.dp),
-                    shape = CircleShape,
-                    containerColor = HeimdallRed,
-                    contentColor = HeimdallWhite,
-                    elevation = FloatingActionButtonDefaults.elevation(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Stop,
-                        contentDescription = "Stop tracking",
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
-            } else {
+            if (!isTracking) {
+                // ── START button ──
                 FloatingActionButton(
                     onClick = { viewModel.startTracking() },
                     modifier = Modifier.size(80.dp),
@@ -233,6 +270,48 @@ fun TrackingScreen(viewModel: TrackingViewModel) {
                         contentDescription = "Start tracking",
                         modifier = Modifier.size(40.dp)
                     )
+                }
+            } else {
+                // ── PAUSE/RESUME  +  STOP buttons ──
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Pause / Resume
+                    FloatingActionButton(
+                        onClick = {
+                            if (isManuallyPaused) viewModel.resumeTracking()
+                            else viewModel.pauseTracking()
+                        },
+                        modifier = Modifier.size(64.dp),
+                        shape = CircleShape,
+                        containerColor = if (isManuallyPaused) HeimdallGreen else HeimdallGold,
+                        contentColor = HeimdallBlack,
+                        elevation = FloatingActionButtonDefaults.elevation(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isManuallyPaused) Icons.Default.PlayArrow
+                                          else Icons.Default.Pause,
+                            contentDescription = if (isManuallyPaused) "Resume" else "Pause",
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    // Stop (finalises + saves)
+                    FloatingActionButton(
+                        onClick = { viewModel.stopTracking() },
+                        modifier = Modifier.size(80.dp),
+                        shape = CircleShape,
+                        containerColor = HeimdallRed,
+                        contentColor = HeimdallWhite,
+                        elevation = FloatingActionButtonDefaults.elevation(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Stop,
+                            contentDescription = "Stop tracking",
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
                 }
             }
         }

@@ -6,14 +6,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
@@ -26,11 +24,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -93,10 +87,11 @@ fun HeimdallMainScreen() {
     val viewModel: TrackingViewModel = viewModel()
 
     val navItems = listOf(
-        BottomNavItem(Screen.Tracking, "Track", Icons.Default.DirectionsRun),
-        BottomNavItem(Screen.History, "History", Icons.Default.History),
-        BottomNavItem(Screen.Settings, "Settings", Icons.Default.Settings),
-        BottomNavItem(Screen.About, "About", Icons.Default.Info)
+        BottomNavItem(Screen.Tracking,  "Track",    Icons.Default.DirectionsRun),
+        BottomNavItem(Screen.History,   "History",  Icons.Default.History),
+        BottomNavItem(Screen.Calendar,  "Calendar", Icons.Default.CalendarMonth),
+        BottomNavItem(Screen.Settings,  "Settings", Icons.Default.Settings),
+        BottomNavItem(Screen.About,     "About",    Icons.Default.Info)
     )
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -107,46 +102,48 @@ fun HeimdallMainScreen() {
 
     Scaffold(
         bottomBar = {
-            if (showBottomBar) NavigationBar(
-                containerColor = HeimdallDarkGray,
-                contentColor = HeimdallWhite
-            ) {
-                navItems.forEach { item ->
-                    val selected = currentDestination?.hierarchy?.any {
-                        it.route == item.screen.route
-                    } == true
+            if (showBottomBar) {
+                NavigationBar(
+                    containerColor = HeimdallDarkGray,
+                    contentColor = HeimdallWhite
+                ) {
+                    navItems.forEach { item ->
+                        val selected = currentDestination?.hierarchy?.any {
+                            it.route == item.screen.route
+                        } == true
 
-                    NavigationBarItem(
-                        icon = {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = item.label
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = item.label,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        },
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(item.screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                        NavigationBarItem(
+                            icon = {
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.label
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = item.label,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(item.screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = HeimdallGold,
-                            selectedTextColor = HeimdallGold,
-                            unselectedIconColor = HeimdallWhite.copy(alpha = 0.4f),
-                            unselectedTextColor = HeimdallWhite.copy(alpha = 0.4f),
-                            indicatorColor = HeimdallMediumGray
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = HeimdallGold,
+                                selectedTextColor = HeimdallGold,
+                                unselectedIconColor = HeimdallWhite.copy(alpha = 0.4f),
+                                unselectedTextColor = HeimdallWhite.copy(alpha = 0.4f),
+                                indicatorColor = HeimdallMediumGray
+                            )
                         )
-                    )
+                    }
                 }
             }
         }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider paths for sharing run summary images -->
+<paths>
+    <cache-path name="shared_images" path="share/" />
+</paths>

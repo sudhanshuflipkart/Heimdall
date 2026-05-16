@@ -1,7 +1,9 @@
 package com.heimdall.tracker.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
+import android.location.LocationManager
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,19 +25,25 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
 
     val allRuns: StateFlow<List<RunEntity>>
 
-    // Observe tracking service state
+    // ── Tracking state from service ──
     val isTracking: StateFlow<Boolean> = TrackingService.isTracking
+    val isManuallyPaused: StateFlow<Boolean> = TrackingService.isManuallyPaused
     val isAutoPaused: StateFlow<Boolean> = TrackingService.isAutoPaused
     val routePoints: StateFlow<List<GeoPoint>> = TrackingService.routePoints
     val currentLocation: StateFlow<GeoPoint?> = TrackingService.currentLocation
     val distanceMeters: StateFlow<Double> = TrackingService.distanceMeters
     val activeTimeMillis: StateFlow<Long> = TrackingService.activeTimeMillis
 
-    // Auto-pause speed setting
+    // ── Settings ──
     private val _autoPauseSpeed = MutableStateFlow(
         TrackingService.getAutoPauseSpeed(application)
     )
     val autoPauseSpeed: StateFlow<Float> = _autoPauseSpeed.asStateFlow()
+
+    // ── One-shot event: GPS provider is disabled when user hits Start ──
+    // UI observes this and shows a toast / deeplink to settings.
+    private val _gpsDisabledEvent = MutableStateFlow(false)
+    val gpsDisabledEvent: StateFlow<Boolean> = _gpsDisabledEvent.asStateFlow()
 
     init {
         val db = HeimdallDatabase.getInstance(application)
@@ -44,12 +52,19 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
             .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     }
 
-    fun setAutoPauseSpeed(speed: Float) {
-        _autoPauseSpeed.value = speed
-        TrackingService.setAutoPauseSpeed(getApplication(), speed)
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // Tracking control
+    // ─────────────────────────────────────────────────────────────────────────
 
     fun startTracking() {
+        // Guard: GPS must be enabled
+        val lm = getApplication<Application>()
+            .getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            _gpsDisabledEvent.value = true
+            return
+        }
+
         try {
             TrackingService.resetState()
             val intent = Intent(getApplication(), TrackingService::class.java).apply {
@@ -61,6 +76,28 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun pauseTracking() {
+        try {
+            val intent = Intent(getApplication(), TrackingService::class.java).apply {
+                action = TrackingService.ACTION_PAUSE
+            }
+            getApplication<Application>().startService(intent)
+        } catch (e: Exception) {
+            Log.e("TrackingVM", "Failed to pause tracking", e)
+        }
+    }
+
+    fun resumeTracking() {
+        try {
+            val intent = Intent(getApplication(), TrackingService::class.java).apply {
+                action = TrackingService.ACTION_RESUME
+            }
+            getApplication<Application>().startService(intent)
+        } catch (e: Exception) {
+            Log.e("TrackingVM", "Failed to resume tracking", e)
+        }
+    }
+
     fun stopTracking() {
         try {
             // Save the run before stopping
@@ -68,9 +105,9 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
             val distance = distanceMeters.value
             val activeTime = activeTimeMillis.value
 
-            if (distance > 10 && activeTime > 5000) { // minimum 10m and 5s to save
+            if (distance > 10 && activeTime > 5000) {
                 val avgPace = if (distance > 0) {
-                    (activeTime / 1000.0) / (distance / 1000.0) // seconds per km
+                    (activeTime / 1000.0) / (distance / 1000.0)
                 } else 0.0
 
                 val run = RunEntity(
@@ -83,11 +120,8 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
                 )
 
                 viewModelScope.launch {
-                    try {
-                        repository.insertRun(run)
-                    } catch (e: Exception) {
-                        Log.e("TrackingVM", "Failed to save run", e)
-                    }
+                    try { repository.insertRun(run) }
+                    catch (e: Exception) { Log.e("TrackingVM", "Failed to save run", e) }
                 }
             }
 
@@ -100,15 +134,29 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Call from UI after the toast has been shown so it doesn't re-trigger. */
+    fun consumeGpsDisabledEvent() {
+        _gpsDisabledEvent.value = false
+    }
+
+    fun setAutoPauseSpeed(speed: Float) {
+        _autoPauseSpeed.value = speed
+        TrackingService.setAutoPauseSpeed(getApplication(), speed)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Database
+    // ─────────────────────────────────────────────────────────────────────────
+
     suspend fun getRunById(runId: Long): RunEntity? = repository.getRunById(runId)
 
     fun deleteRun(runId: Long) {
-        viewModelScope.launch {
-            repository.deleteRun(runId)
-        }
+        viewModelScope.launch { repository.deleteRun(runId) }
     }
 
-    // ── Formatting helpers ──
+    // ─────────────────────────────────────────────────────────────────────────
+    // Formatting helpers
+    // ─────────────────────────────────────────────────────────────────────────
 
     fun formatDuration(millis: Long): String {
         val totalSeconds = millis / 1000
@@ -130,14 +178,10 @@ class TrackingViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun formatDistanceKm(meters: Double): String {
-        return String.format("%.2f", meters / 1000.0)
-    }
+    fun formatDistanceKm(meters: Double): String = String.format("%.2f", meters / 1000.0)
 
     fun formatPace(secondsPerKm: Double): String {
-        if (secondsPerKm <= 0 || secondsPerKm.isInfinite() || secondsPerKm.isNaN()) {
-            return "--:--"
-        }
+        if (secondsPerKm <= 0 || secondsPerKm.isInfinite() || secondsPerKm.isNaN()) return "--:--"
         val minutes = (secondsPerKm / 60).toInt()
         val seconds = (secondsPerKm % 60).toInt()
         return String.format("%d:%02d", minutes, seconds)
