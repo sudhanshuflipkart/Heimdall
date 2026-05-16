@@ -203,7 +203,7 @@ fun RunDetailScreen(
                         mapView.overlays.add(polyline)
 
                         val isLoop = points.size > 1 &&
-                            points.first().distanceTo(points.last()) < 50.0
+                            points.first().distanceToAsDouble(points.last()) < 50.0
 
                         if (isLoop) {
                             // ── Loop run: single avatar marker at start/finish ──
