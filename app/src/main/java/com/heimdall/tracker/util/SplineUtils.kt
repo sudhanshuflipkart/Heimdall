@@ -52,8 +52,11 @@ object SplineUtils {
      * Catmull-Rom cubic spline formula for a single coordinate dimension.
      * Produces a smooth curve that passes through p1 and p2.
      *
-     * @param p0..p3  Four consecutive control values.
-     * @param t       Interpolation parameter in [0, 1] between p1 and p2.
+     * @param p0  Control value before the segment start.
+     * @param p1  Segment start value (curve passes through this).
+     * @param p2  Segment end value (curve passes through this).
+     * @param p3  Control value after the segment end.
+     * @param t   Interpolation parameter in [0, 1] between p1 and p2.
      */
     private fun catmullRom(p0: Double, p1: Double, p2: Double, p3: Double, t: Double): Double {
         val t2 = t * t
