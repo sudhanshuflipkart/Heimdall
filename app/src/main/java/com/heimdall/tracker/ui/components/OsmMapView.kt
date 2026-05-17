@@ -19,10 +19,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.google.android.gms.location.LocationServices
 import com.heimdall.tracker.R
 import com.heimdall.tracker.util.AvatarManager
 import com.heimdall.tracker.util.SplineUtils
-import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -57,14 +57,6 @@ fun OsmMapView(
     // Flicker fix: don't animate camera until the view has been laid out
     var mapReady by remember { mutableStateOf(false) }
 
-    // Configure osmdroid once per process
-    LaunchedEffect(Unit) {
-        Configuration.getInstance().apply {
-            userAgentValue = context.packageName
-            osmdroidTileCache = context.cacheDir
-        }
-    }
-
     // Create the MapView once and keep it stable
     val mapView = remember {
         MapView(context).apply {
@@ -92,14 +84,14 @@ fun OsmMapView(
         }
     }
 
-    // Build the avatar marker icon — custom photo or fallback SVG pin
-    val markerBitmap: Bitmap? = remember {
-        val avatarFile = AvatarManager.getAvatarFile(context)
+    // Build the avatar marker icon — re-evaluated whenever the avatar file changes.
+    // Keyed on lastModified so uploading / removing a photo mid-session updates the pin.
+    val avatarFile = AvatarManager.getAvatarFile(context)
+    val avatarKey = avatarFile.lastModified()   // 0 when file absent, timestamp when present
+    val markerBitmap: Bitmap? = remember(avatarKey) {
         if (avatarFile.exists()) {
-            // User has set a custom photo
             buildCircularAvatarBitmap(avatarFile, 148)
         } else {
-            // Fallback: bundled drawable
             buildDrawableBitmap(context, R.drawable.ic_custom_pin, 148)
         }
     }
@@ -129,6 +121,24 @@ fun OsmMapView(
             lifecycleOwner.lifecycle.removeObserver(observer)
             mapView.onPause()
             mapView.onDetach()
+        }
+    }
+
+    // Before the first GPS fix arrives, center the map on the device's last known location
+    // so the user sees their neighbourhood rather than (0, 0) in the ocean.
+    LaunchedEffect(Unit) {
+        if (currentLocation == null) {
+            try {
+                val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+                fusedClient.lastLocation.addOnSuccessListener { loc ->
+                    if (loc != null) {
+                        mapView.controller.setCenter(GeoPoint(loc.latitude, loc.longitude))
+                        mapView.invalidate()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

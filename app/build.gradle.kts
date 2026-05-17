@@ -80,6 +80,9 @@ dependencies {
     // ── Permissions ──
     implementation("com.google.accompanist:accompanist-permissions:0.36.0")
 
+    // ── Image crop (circular crop after photo pick in Settings) ──
+    implementation("com.vanniktech:android-image-cropper:4.6.0")
+
     // ── Coroutines ──
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")

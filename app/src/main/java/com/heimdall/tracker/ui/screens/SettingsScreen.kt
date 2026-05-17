@@ -3,6 +3,10 @@ package com.heimdall.tracker.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.canhub.cropper.CropImageContract
+import com.canhub.cropper.CropImageContractOptions
+import com.canhub.cropper.CropImageOptions
+import com.canhub.cropper.CropImageView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -69,13 +73,39 @@ fun SettingsScreen(viewModel: TrackingViewModel) {
     // Track whether we currently have a saved avatar (refreshes after save/delete)
     var hasAvatar by remember { mutableStateOf(AvatarManager.hasAvatar(context)) }
 
-    // Photo picker launcher — no READ_MEDIA permission needed on Android 13+
+    // Step 2: Crop launcher — receives the picked URI, shows circular crop UI, then saves
+    val cropLauncher = rememberLauncherForActivityResult(
+        contract = CropImageContract()
+    ) { result ->
+        if (result.isSuccessful) {
+            val croppedUri = result.uriContent ?: return@rememberLauncherForActivityResult
+            val saved = AvatarManager.saveAvatar(context, croppedUri)
+            if (saved) hasAvatar = true
+        }
+    }
+
+    // Step 1: Photo picker launcher — no READ_MEDIA permission needed on Android 13+
+    // After picking, hands off to the crop activity for zoom/pan/confirm
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            val saved = AvatarManager.saveAvatar(context, uri)
-            if (saved) hasAvatar = true
+            cropLauncher.launch(
+                CropImageContractOptions(
+                    uri = uri,
+                    cropImageOptions = CropImageOptions(
+                        cropShape = CropImageView.CropShape.OVAL,   // circular mask
+                        fixAspectRatio = true,
+                        aspectRatioX = 1,
+                        aspectRatioY = 1,
+                        imageSourceIncludeCamera = false,
+                        imageSourceIncludeGallery = false,
+                        showCropOverlay = true,
+                        autoZoomEnabled = true,
+                        guidelines = com.canhub.cropper.CropImageView.Guidelines.ON
+                    )
+                )
+            )
         }
     }
 
